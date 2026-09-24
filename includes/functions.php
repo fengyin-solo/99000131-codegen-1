@@ -234,3 +234,88 @@ function getPendingReportCount() {
     $db = getDB();
     return $db->query("SELECT COUNT(*) FROM reports WHERE status = 0")->fetchColumn();
 }
+
+/**
+ * 获取工单阶段文字
+ */
+function getWorkOrderStageLabel($stage) {
+    $map = [0 => '待受理', 1 => '已受理', 2 => '处理中', 3 => '已办结'];
+    return $map[intval($stage)] ?? '未知';
+}
+
+/**
+ * 获取工单阶段样式类
+ */
+function getWorkOrderStageClass($stage) {
+    $map = [0 => 'pending', 1 => 'accepted', 2 => 'processing', 3 => 'completed'];
+    return $map[intval($stage)] ?? '';
+}
+
+/**
+ * 判断工单是否超过约定时限仍未完成
+ */
+function isWorkOrderOverdue($order) {
+    if (!$order || intval($order['stage']) >= 3) return false;
+    if (empty($order['expected_finish_at'])) return false;
+    return strtotime($order['expected_finish_at']) < time();
+}
+
+/**
+ * 按留言ID获取工单(含责任网格、责任人)
+ */
+function getWorkOrderByMessage($messageId) {
+    $db = getDB();
+    $stmt = $db->prepare("SELECT w.*, g.name AS grid_name, gw.name AS worker_name, gw.phone AS worker_phone
+        FROM work_orders w
+        LEFT JOIN grids g ON w.grid_id = g.id
+        LEFT JOIN grid_workers gw ON w.worker_id = gw.id
+        WHERE w.message_id = ?");
+    $stmt->execute([$messageId]);
+    $order = $stmt->fetch();
+    return $order ?: null;
+}
+
+/**
+ * 按ID获取工单(含责任网格、责任人)
+ */
+function getWorkOrderById($id) {
+    $db = getDB();
+    $stmt = $db->prepare("SELECT w.*, g.name AS grid_name, gw.name AS worker_name, gw.phone AS worker_phone
+        FROM work_orders w
+        LEFT JOIN grids g ON w.grid_id = g.id
+        LEFT JOIN grid_workers gw ON w.worker_id = gw.id
+        WHERE w.id = ?");
+    $stmt->execute([$id]);
+    $order = $stmt->fetch();
+    return $order ?: null;
+}
+
+/**
+ * 获取工单进度记录(处理说明时间线)
+ */
+function getWorkOrderLogs($orderId) {
+    $db = getDB();
+    $stmt = $db->prepare("SELECT l.*, a.username AS operator_name
+        FROM work_order_logs l
+        LEFT JOIN admins a ON l.created_by = a.id
+        WHERE l.work_order_id = ?
+        ORDER BY l.created_at ASC, l.id ASC");
+    $stmt->execute([$orderId]);
+    return $stmt->fetchAll();
+}
+
+/**
+ * 获取超时待办工单数量(超过约定时限仍未完成)
+ */
+function getTodoWorkOrderCount() {
+    $db = getDB();
+    return $db->query("SELECT COUNT(*) FROM work_orders WHERE stage < 3 AND expected_finish_at IS NOT NULL AND expected_finish_at < NOW()")->fetchColumn();
+}
+
+/**
+ * 获取所有网格员(含所属网格名称)
+ */
+function getAllGridWorkers() {
+    $db = getDB();
+    return $db->query("SELECT gw.*, g.name AS grid_name FROM grid_workers gw INNER JOIN grids g ON gw.grid_id = g.id ORDER BY g.id ASC, gw.id ASC")->fetchAll();
+}

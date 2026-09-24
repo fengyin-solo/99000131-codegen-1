@@ -828,8 +828,166 @@ a:hover { color: var(--primary-dark); }
     .report-type-options {
         grid-template-columns: 1fr;
     }
-    
+
     .report-text {
         display: none;
     }
+}
+
+/* ========== Work Order ========== */
+.wo-order-no {
+    font-size: .8rem;
+    font-weight: 600;
+    color: var(--gray-500);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+/* 阶段徽章 */
+.stage-badge {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 10px;
+    font-size: .75rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+.stage-pending { background: #fef3c7; color: #92400e; }
+.stage-accepted { background: #dbeafe; color: #1e40af; }
+.stage-processing { background: #e0e7ff; color: #3730a3; }
+.stage-completed { background: #d1fae5; color: #065f46; }
+
+/* 超时徽章 */
+.overdue-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: .75rem;
+    font-weight: 600;
+    background: #fee2e2;
+    color: #991b1b;
+    white-space: nowrap;
+}
+.wo-overdue-text { color: var(--danger) !important; font-weight: 600; }
+
+/* 留言详情页工单卡片 */
+.work-order-card {
+    background: var(--gray-50);
+    border: 1px solid var(--gray-200);
+    border-radius: var(--radius-sm);
+    padding: 16px 20px;
+    margin-bottom: 20px;
+}
+.wo-card-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
+}
+.wo-card-header h3 { font-size: 1rem; margin: 0; }
+.wo-card-tip { font-size: .85rem; color: var(--gray-500); margin-bottom: 12px; }
+
+/* 工单信息栅格 */
+.wo-info-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 12px;
+    margin-bottom: 12px;
+}
+.wo-info-item {
+    background: #fff;
+    border: 1px solid var(--gray-200);
+    border-radius: var(--radius-sm);
+    padding: 10px 12px;
+}
+.wo-label { font-size: .75rem; color: var(--gray-400); margin-bottom: 2px; }
+.wo-value { font-size: .9rem; font-weight: 600; color: var(--gray-700); }
+
+/* 办理结果 */
+.wo-result-box {
+    background: #ecfdf5;
+    border: 1px solid #a7f3d0;
+    border-radius: var(--radius-sm);
+    padding: 10px 14px;
+    font-size: .9rem;
+    color: #065f46;
+    margin-bottom: 12px;
+}
+
+/* 我的工单列表 */
+.wo-card { display: block; }
+.wo-card:hover { text-decoration: none; }
+.wo-meta {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    font-size: .8rem;
+    color: var(--gray-500);
+}
+.wo-meta-item { white-space: nowrap; }
+.wo-result {
+    margin-top: 8px;
+    font-size: .85rem;
+    color: #065f46;
+}
+
+/* 工单详情页 */
+.wo-message-box {
+    background: var(--gray-50);
+    border-radius: var(--radius-sm);
+    padding: 12px 16px;
+    margin-bottom: 20px;
+    font-size: .9rem;
+}
+.wo-message-box p { color: var(--gray-600); margin: 6px 0 10px; }
+.wo-timeline-section { margin-bottom: 8px; }
+.wo-section-title { font-size: 1.05rem; margin-bottom: 12px; }
+
+/* 进度时间线 */
+.timeline { list-style: none; margin: 0; padding: 0; }
+.timeline-item {
+    position: relative;
+    padding: 0 0 18px 24px;
+    border-left: 2px solid var(--gray-200);
+    margin-left: 6px;
+}
+.timeline-item:last-child { border-left-color: transparent; padding-bottom: 4px; }
+.timeline-item::before {
+    content: '';
+    position: absolute;
+    left: -7px;
+    top: 4px;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--primary);
+    border: 2px solid #fff;
+    box-shadow: 0 0 0 2px var(--gray-200);
+}
+.timeline-stage { margin-bottom: 6px; }
+.timeline-note {
+    background: var(--gray-50);
+    padding: 8px 12px;
+    border-radius: var(--radius-sm);
+    font-size: .9rem;
+    color: var(--gray-700);
+    line-height: 1.6;
+}
+.timeline-meta { font-size: .78rem; color: var(--gray-400); margin-top: 4px; }
+
+/* 后台超时行高亮 */
+.overdue-row { background: #fef2f2; }
+.overdue-row:hover { background: #fee2e2 !important; }
+
+/* 工单弹窗提示 */
+.wo-modal-tip { font-size: .85rem; color: var(--gray-500); margin-bottom: 16px; }
+
+@media (max-width: 768px) {
+    .wo-info-grid { grid-template-columns: repeat(2, 1fr); }
+    .wo-meta { gap: 8px; }
+}
+
+@media (max-width: 480px) {
+    .wo-info-grid { grid-template-columns: 1fr; }
 }

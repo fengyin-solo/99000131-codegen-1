@@ -106,6 +106,211 @@ switch ($action) {
         }
         break;
 
+    case 'work_order_detail':
+        $id = intval($_GET['id'] ?? 0);
+        $order = getWorkOrderById($id);
+        if (!$order) jsonResponse(1, '工单不存在');
+
+        $stmt = $db->prepare("SELECT title, nickname FROM messages WHERE id = ?");
+        $stmt->execute([$order['message_id']]);
+        $message = $stmt->fetch();
+
+        $logs = getWorkOrderLogs($id);
+        $logList = [];
+        foreach ($logs as $log) {
+            $logList[] = [
+                'stage_label' => getWorkOrderStageLabel($log['stage']),
+                'stage_class' => getWorkOrderStageClass($log['stage']),
+                'note' => nl2br(cleanInput($log['note'])),
+                'operator' => $log['operator_name'] ? '👷 ' . cleanInput($log['operator_name']) : '👤 居民',
+                'created_at' => $log['created_at'],
+            ];
+        }
+
+        jsonResponse(0, 'ok', [
+            'id' => $order['id'],
+            'order_no' => cleanInput($order['order_no']),
+            'message_id' => $order['message_id'],
+            'message_title' => $message ? cleanInput($message['title']) : '留言已删除',
+            'message_nickname' => $message ? cleanInput($message['nickname']) : '-',
+            'stage_label' => getWorkOrderStageLabel($order['stage']),
+            'stage_class' => getWorkOrderStageClass($order['stage']),
+            'overdue' => isWorkOrderOverdue($order),
+            'grid_name' => $order['grid_name'] ? cleanInput($order['grid_name']) : '',
+            'worker_name' => $order['worker_name'] ? cleanInput($order['worker_name']) : '',
+            'expected_finish_at' => $order['expected_finish_at'] ?: '',
+            'finished_at' => $order['finished_at'] ?: '',
+            'result' => $order['result'] ? nl2br(cleanInput($order['result'])) : '',
+            'logs' => $logList,
+        ]);
+        break;
+
+    case 'assign_order':
+        $id = intval($_POST['id'] ?? 0);
+        $workerId = intval($_POST['worker_id'] ?? 0);
+        $expected = trim($_POST['expected_finish_at'] ?? '');
+        $note = trim($_POST['note'] ?? '');
+
+        if ($workerId <= 0) jsonResponse(1, '请选择网格员');
+        if ($note === '') jsonResponse(1, '请填写处理说明');
+        if (mb_strlen($note) > 500) jsonResponse(1, '处理说明不能超过500字');
+
+        $expectedTs = strtotime($expected);
+        if ($expectedTs === false) jsonResponse(1, '请选择预计完成时间');
+        if ($expectedTs <= time()) jsonResponse(1, '预计完成时间必须晚于当前时间');
+        $expectedAt = date('Y-m-d H:i:s', $expectedTs);
+
+        // 校验网格员及其所属网格
+        $stmt = $db->prepare("SELECT gw.*, g.name AS grid_name FROM grid_workers gw INNER JOIN grids g ON gw.grid_id = g.id WHERE gw.id = ?");
+        $stmt->execute([$workerId]);
+        $worker = $stmt->fetch();
+        if (!$worker) jsonResponse(1, '网格员不存在');
+
+        $db->beginTransaction();
+        try {
+            $stmt = $db->prepare("SELECT * FROM work_orders WHERE id = ? FOR UPDATE");
+            $stmt->execute([$id]);
+            $order = $stmt->fetch();
+            if (!$order) {
+                $db->rollBack();
+                jsonResponse(1, '工单不存在');
+            }
+            if (intval($order['stage']) !== 0) {
+                $db->rollBack();
+                jsonResponse(1, '工单已受理，请勿重复操作');
+            }
+
+            $stmt = $db->prepare("UPDATE work_orders SET stage = 1, grid_id = ?, worker_id = ?, expected_finish_at = ? WHERE id = ?");
+            $stmt->execute([$worker['grid_id'], $worker['id'], $expectedAt, $id]);
+
+            $stmt = $db->prepare("INSERT INTO work_order_logs (work_order_id, stage, note, created_by) VALUES (?, 1, ?, ?)");
+            $stmt->execute([$id, $note, $_SESSION['admin_id']]);
+
+            $db->commit();
+            jsonResponse(0, '受理成功，已指派网格员');
+        } catch (Exception $e) {
+            $db->rollBack();
+            jsonResponse(1, '操作失败: ' . $e->getMessage());
+        }
+        break;
+
+    case 'update_stage':
+        $id = intval($_POST['id'] ?? 0);
+        $stage = intval($_POST['stage'] ?? -1);
+        $note = trim($_POST['note'] ?? '');
+        $result = trim($_POST['result'] ?? '');
+
+        if (!in_array($stage, [2, 3])) jsonResponse(1, '无效的办理阶段');
+        if ($note === '') jsonResponse(1, '请填写处理说明');
+        if (mb_strlen($note) > 500) jsonResponse(1, '处理说明不能超过500字');
+        if ($stage === 3 && $result === '') jsonResponse(1, '办结时请填写办理结果');
+        if (mb_strlen($result) > 500) jsonResponse(1, '办理结果不能超过500字');
+
+        $db->beginTransaction();
+        try {
+            $stmt = $db->prepare("SELECT * FROM work_orders WHERE id = ? FOR UPDATE");
+            $stmt->execute([$id]);
+            $order = $stmt->fetch();
+            if (!$order) {
+                $db->rollBack();
+                jsonResponse(1, '工单不存在');
+            }
+            $currentStage = intval($order['stage']);
+            if ($currentStage === 0) {
+                $db->rollBack();
+                jsonResponse(1, '工单尚未受理，请先受理指派');
+            }
+            if ($currentStage === 3) {
+                $db->rollBack();
+                jsonResponse(1, '工单已办结，无需再更新');
+            }
+            if ($stage <= $currentStage) {
+                $db->rollBack();
+                jsonResponse(1, '办理阶段不能回退');
+            }
+
+            if ($stage === 3) {
+                $stmt = $db->prepare("UPDATE work_orders SET stage = 3, finished_at = NOW(), result = ? WHERE id = ?");
+                $stmt->execute([$result, $id]);
+            } else {
+                $stmt = $db->prepare("UPDATE work_orders SET stage = ? WHERE id = ?");
+                $stmt->execute([$stage, $id]);
+            }
+
+            $stmt = $db->prepare("INSERT INTO work_order_logs (work_order_id, stage, note, created_by) VALUES (?, ?, ?, ?)");
+            $stmt->execute([$id, $stage, $note, $_SESSION['admin_id']]);
+
+            $db->commit();
+            jsonResponse(0, $stage === 3 ? '工单已办结' : '进度已更新');
+        } catch (Exception $e) {
+            $db->rollBack();
+            jsonResponse(1, '操作失败: ' . $e->getMessage());
+        }
+        break;
+
+    case 'reassign_order':
+        $id = intval($_POST['id'] ?? 0);
+        $workerId = intval($_POST['worker_id'] ?? 0);
+        $expected = trim($_POST['expected_finish_at'] ?? '');
+        $note = trim($_POST['note'] ?? '');
+
+        if ($workerId <= 0) jsonResponse(1, '请选择新责任人');
+        if ($note === '') jsonResponse(1, '请填写处理说明');
+        if (mb_strlen($note) > 500) jsonResponse(1, '处理说明不能超过500字');
+
+        // 预计完成时间为可选项，填写时校验
+        $expectedAt = null;
+        if ($expected !== '') {
+            $expectedTs = strtotime($expected);
+            if ($expectedTs === false) jsonResponse(1, '预计完成时间格式不正确');
+            if ($expectedTs <= time()) jsonResponse(1, '预计完成时间必须晚于当前时间');
+            $expectedAt = date('Y-m-d H:i:s', $expectedTs);
+        }
+
+        $stmt = $db->prepare("SELECT gw.*, g.name AS grid_name FROM grid_workers gw INNER JOIN grids g ON gw.grid_id = g.id WHERE gw.id = ?");
+        $stmt->execute([$workerId]);
+        $worker = $stmt->fetch();
+        if (!$worker) jsonResponse(1, '网格员不存在');
+
+        $db->beginTransaction();
+        try {
+            $stmt = $db->prepare("SELECT * FROM work_orders WHERE id = ? FOR UPDATE");
+            $stmt->execute([$id]);
+            $order = $stmt->fetch();
+            if (!$order) {
+                $db->rollBack();
+                jsonResponse(1, '工单不存在');
+            }
+            $currentStage = intval($order['stage']);
+            if ($currentStage === 0) {
+                $db->rollBack();
+                jsonResponse(1, '工单尚未受理，请使用受理指派');
+            }
+            if ($currentStage === 3) {
+                $db->rollBack();
+                jsonResponse(1, '工单已办结，不能重新指派');
+            }
+
+            if ($expectedAt !== null) {
+                $stmt = $db->prepare("UPDATE work_orders SET grid_id = ?, worker_id = ?, expected_finish_at = ? WHERE id = ?");
+                $stmt->execute([$worker['grid_id'], $worker['id'], $expectedAt, $id]);
+            } else {
+                $stmt = $db->prepare("UPDATE work_orders SET grid_id = ?, worker_id = ? WHERE id = ?");
+                $stmt->execute([$worker['grid_id'], $worker['id'], $id]);
+            }
+
+            // 留痕：记录重新指派说明，阶段保持不变
+            $stmt = $db->prepare("INSERT INTO work_order_logs (work_order_id, stage, note, created_by) VALUES (?, ?, ?, ?)");
+            $stmt->execute([$id, $currentStage, $note, $_SESSION['admin_id']]);
+
+            $db->commit();
+            jsonResponse(0, '重新指派成功');
+        } catch (Exception $e) {
+            $db->rollBack();
+            jsonResponse(1, '操作失败: ' . $e->getMessage());
+        }
+        break;
+
     default:
         jsonResponse(1, '未知操作');
 }

@@ -70,6 +70,9 @@ include __DIR__ . '/header.php';
             <a href="index.php?status=0" class="sidebar-link">⏳ 待审核 <?= $pendingCount > 0 ? "($pendingCount)" : '' ?></a>
             <a href="reports.php" class="sidebar-link active">🚩 举报管理</a>
             <a href="reports.php?status=0" class="sidebar-link">⏳ 待处理 <?= $pendingCount > 0 ? "($pendingCount)" : '' ?></a>
+            <a href="work_orders.php" class="sidebar-link">🛠️ 工单管理</a>
+            <?php $todoOrderCount = getTodoWorkOrderCount(); ?>
+            <a href="work_orders.php?view=todo" class="sidebar-link">⏰ 超时待办 <?= $todoOrderCount > 0 ? "($todoOrderCount)" : '' ?></a>
             <a href="../index.php" class="sidebar-link" target="_blank">🌐 查看前台</a>
             <a href="logout.php" class="sidebar-link">🚪 退出登录</a>
         </nav>
