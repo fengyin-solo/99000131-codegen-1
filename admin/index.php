@@ -64,6 +64,9 @@ include __DIR__ . '/header.php';
             <a href="reports.php" class="sidebar-link">🚩 举报管理</a>
             <?php $pendingReportCount = getPendingReportCount(); ?>
             <a href="reports.php?status=0" class="sidebar-link">⏳ 待处理举报 <?= $pendingReportCount > 0 ? "($pendingReportCount)" : '' ?></a>
+            <a href="work_orders.php" class="sidebar-link">📋 工单管理</a>
+            <?php $overdueOrderCount = getOverdueWorkOrderCount(); ?>
+            <a href="work_orders.php?view=overdue" class="sidebar-link">⏰ 超时待办 <?= $overdueOrderCount > 0 ? "($overdueOrderCount)" : '' ?></a>
             <a href="../index.php" class="sidebar-link" target="_blank">🌐 查看前台</a>
             <a href="logout.php" class="sidebar-link">🚪 退出登录</a>
         </nav>

@@ -828,8 +828,207 @@ a:hover { color: var(--primary-dark); }
     .report-type-options {
         grid-template-columns: 1fr;
     }
-    
+
     .report-text {
         display: none;
     }
+}
+
+/* ========== Work Order 工单 ========== */
+.work-orders-section { padding: 24px 0 40px; }
+
+.work-order-list { display: flex; flex-direction: column; gap: 12px; }
+
+.work-order-card {
+    display: block;
+    background: #fff;
+    border-radius: var(--radius);
+    padding: 16px 20px;
+    box-shadow: var(--shadow);
+    transition: var(--transition);
+    color: var(--gray-800);
+}
+
+a.work-order-card:hover {
+    box-shadow: var(--shadow-md);
+    transform: translateY(-2px);
+    color: var(--gray-800);
+}
+
+.work-order-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+    flex-wrap: wrap;
+}
+
+.work-order-no { font-size: .8rem; color: var(--gray-500); font-weight: 600; }
+
+.work-order-title { font-size: 1rem; margin-bottom: 8px; color: var(--gray-800); }
+
+.work-order-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 16px;
+    font-size: .85rem;
+    color: var(--gray-600);
+}
+
+.work-order-section {
+    margin-top: 20px;
+    padding-top: 16px;
+    border-top: 1px dashed var(--gray-200);
+}
+
+.work-order-entry {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.work-order-status-card { cursor: default; }
+
+.work-order-status-card .btn { margin-top: 12px; }
+
+.work-order-info {
+    background: var(--gray-50);
+    border-radius: var(--radius-sm);
+    padding: 16px;
+    margin: 20px 0;
+}
+
+.info-item {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    padding: 6px 0;
+    font-size: .9rem;
+    flex-wrap: wrap;
+}
+
+.info-label {
+    color: var(--gray-500);
+    min-width: 84px;
+    flex-shrink: 0;
+}
+
+.work-order-message { margin-bottom: 20px; }
+
+.section-subtitle { font-size: 1rem; margin-bottom: 12px; }
+
+.text-overdue { color: var(--danger); font-weight: 600; }
+
+/* 阶段徽章 */
+.stage-badge { padding: 2px 8px; border-radius: 10px; font-size: .75rem; font-weight: 600; white-space: nowrap; }
+.stage-accepted { background: #fef3c7; color: #92400e; }
+.stage-processing { background: #dbeafe; color: #1e40af; }
+.stage-completed { background: #d1fae5; color: #065f46; }
+.stage-overdue { background: #fee2e2; color: #991b1b; }
+
+/* 阶段进度条 */
+.stage-steps {
+    display: flex;
+    align-items: center;
+    margin: 24px 0 8px;
+}
+
+.stage-step {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+.stage-dot {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: var(--gray-200);
+    color: var(--gray-500);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: .85rem;
+    font-weight: 600;
+}
+
+.stage-step.active .stage-dot { background: var(--info); color: #fff; }
+.stage-step.done .stage-dot { background: var(--success); color: #fff; }
+
+.stage-name { font-size: .8rem; color: var(--gray-500); white-space: nowrap; }
+.stage-step.active .stage-name { color: var(--info); font-weight: 600; }
+.stage-step.done .stage-name { color: var(--success); font-weight: 600; }
+
+.stage-line {
+    flex: 1;
+    height: 2px;
+    background: var(--gray-200);
+    margin: 0 8px 22px;
+}
+
+.stage-line.done { background: var(--success); }
+
+/* 进度时间线 */
+.timeline { display: flex; flex-direction: column; }
+
+.timeline-item {
+    display: flex;
+    gap: 12px;
+    position: relative;
+    padding-bottom: 20px;
+}
+
+.timeline-item:not(:last-child)::before {
+    content: '';
+    position: absolute;
+    left: 5px;
+    top: 16px;
+    bottom: 0;
+    width: 2px;
+    background: var(--gray-200);
+}
+
+.timeline-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    margin-top: 5px;
+    flex-shrink: 0;
+    position: relative;
+    z-index: 1;
+}
+
+.timeline-dot.stage-accepted { background: var(--warning); }
+.timeline-dot.stage-processing { background: var(--info); }
+.timeline-dot.stage-completed { background: var(--success); }
+
+.timeline-content {
+    flex: 1;
+    background: var(--gray-50);
+    border-radius: var(--radius-sm);
+    padding: 12px 16px;
+}
+
+.timeline-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 6px;
+}
+
+.timeline-operator { font-size: .85rem; font-weight: 600; color: var(--gray-700); }
+.timeline-time { font-size: .8rem; color: var(--gray-400); }
+.timeline-note { font-size: .9rem; color: var(--gray-700); line-height: 1.6; }
+
+/* 工单响应式 */
+@media (max-width: 768px) {
+    .stage-name { font-size: .7rem; }
+    .stage-dot { width: 26px; height: 26px; font-size: .75rem; }
+    .work-order-meta { flex-direction: column; gap: 4px; }
+    .info-label { min-width: 70px; }
 }

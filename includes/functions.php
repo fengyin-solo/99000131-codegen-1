@@ -234,3 +234,158 @@ function getPendingReportCount() {
     $db = getDB();
     return $db->query("SELECT COUNT(*) FROM reports WHERE status = 0")->fetchColumn();
 }
+
+/**
+ * 获取工单阶段文字
+ */
+function getWorkOrderStageLabel($stage) {
+    $map = ['accepted' => '已受理', 'processing' => '处理中', 'completed' => '已完成'];
+    return $map[$stage] ?? '未知';
+}
+
+/**
+ * 获取工单阶段样式类
+ */
+function getWorkOrderStageClass($stage) {
+    $map = ['accepted' => 'accepted', 'processing' => 'processing', 'completed' => 'completed'];
+    return $map[$stage] ?? '';
+}
+
+/**
+ * 判断工单是否超时（超过约定时限仍未完成）
+ */
+function isWorkOrderOverdue($order) {
+    return $order['stage'] !== 'completed' && strtotime($order['expected_finish_at']) < time();
+}
+
+/**
+ * 获取所有网格
+ */
+function getAllGrids() {
+    $db = getDB();
+    return $db->query("SELECT * FROM grids ORDER BY id ASC")->fetchAll();
+}
+
+/**
+ * 根据留言ID获取工单（关联网格信息）
+ */
+function getWorkOrderByMessageId($messageId) {
+    $db = getDB();
+    $stmt = $db->prepare("SELECT o.*, g.name AS grid_name, g.worker_name, g.worker_phone
+        FROM work_orders o INNER JOIN grids g ON o.grid_id = g.id
+        WHERE o.message_id = ?");
+    $stmt->execute([$messageId]);
+    $order = $stmt->fetch();
+    return $order ? $order : null;
+}
+
+/**
+ * 根据工单ID获取工单（关联网格信息）
+ */
+function getWorkOrderById($id) {
+    $db = getDB();
+    $stmt = $db->prepare("SELECT o.*, g.name AS grid_name, g.worker_name, g.worker_phone
+        FROM work_orders o INNER JOIN grids g ON o.grid_id = g.id
+        WHERE o.id = ?");
+    $stmt->execute([$id]);
+    $order = $stmt->fetch();
+    return $order ? $order : null;
+}
+
+/**
+ * 获取工单进度记录（处理说明留痕，按时间正序）
+ */
+function getWorkOrderLogs($orderId) {
+    $db = getDB();
+    $stmt = $db->prepare("SELECT * FROM work_order_logs WHERE order_id = ? ORDER BY created_at ASC, id ASC");
+    $stmt->execute([$orderId]);
+    return $stmt->fetchAll();
+}
+
+/**
+ * 生成工单编号
+ */
+function generateOrderNo() {
+    return 'GD' . date('Ymd') . strtoupper(bin2hex(random_bytes(4)));
+}
+
+/**
+ * 发起工单
+ * 同一留言重复发起只合并成一张工单（幂等，网络重试/重复提交不会产生重复工单）
+ * 返回: ['order' => array, 'merged' => bool] merged为true表示合并到已有工单
+ */
+function createWorkOrder($messageId, $gridId, $expectedFinishAt, $note = '') {
+    $visitorId = getVisitorId();
+    $db = getDB();
+
+    $db->beginTransaction();
+    try {
+        // 锁定同一留言的已有工单，重复发起直接合并返回
+        $stmt = $db->prepare("SELECT id FROM work_orders WHERE message_id = ? FOR UPDATE");
+        $stmt->execute([$messageId]);
+        $existId = $stmt->fetchColumn();
+        if ($existId) {
+            $db->commit();
+            return ['order' => getWorkOrderById($existId), 'merged' => true];
+        }
+
+        $stmt = $db->prepare("SELECT id FROM messages WHERE id = ? AND status = 1 AND type = 'help'");
+        $stmt->execute([$messageId]);
+        if (!$stmt->fetch()) {
+            throw new Exception('留言不存在、未通过审核或不属于居民求助');
+        }
+
+        $stmt = $db->prepare("SELECT id FROM grids WHERE id = ?");
+        $stmt->execute([$gridId]);
+        if (!$stmt->fetch()) {
+            throw new Exception('所选网格不存在');
+        }
+
+        $stmt = $db->prepare("INSERT INTO work_orders (order_no, message_id, visitor_id, grid_id, stage, expected_finish_at) VALUES (?, ?, ?, ?, 'accepted', ?)");
+        $stmt->execute([generateOrderNo(), $messageId, $visitorId, $gridId, $expectedFinishAt]);
+        $orderId = $db->lastInsertId();
+
+        // 初始进度记录
+        $initNote = $note !== '' ? $note : '居民发起办理，工单已受理';
+        $db->prepare("INSERT INTO work_order_logs (order_id, stage, note, operator_name) VALUES (?, 'accepted', ?, ?)")
+            ->execute([$orderId, $initNote, '居民']);
+
+        $db->commit();
+        return ['order' => getWorkOrderById($orderId), 'merged' => false];
+    } catch (Exception $e) {
+        $db->rollBack();
+        // 并发重复发起导致唯一键冲突时，合并返回已有工单
+        $stmt = $db->prepare("SELECT id FROM work_orders WHERE message_id = ?");
+        $stmt->execute([$messageId]);
+        $existId = $stmt->fetchColumn();
+        if ($existId) {
+            return ['order' => getWorkOrderById($existId), 'merged' => true];
+        }
+        throw $e;
+    }
+}
+
+/**
+ * 格式化工单信息（用于接口返回）
+ */
+function formatWorkOrder($order) {
+    if (!$order) return null;
+    return [
+        'id' => intval($order['id']),
+        'order_no' => $order['order_no'],
+        'stage' => $order['stage'],
+        'stage_label' => getWorkOrderStageLabel($order['stage']),
+        'grid_name' => $order['grid_name'],
+        'worker_name' => $order['worker_name'],
+        'expected_finish_at' => $order['expected_finish_at'],
+        'overdue' => isWorkOrderOverdue($order),
+    ];
+}
+
+/**
+ * 获取超时未完成工单数量（待办）
+ */
+function getOverdueWorkOrderCount() {
+    $db = getDB();
+    return $db->query("SELECT COUNT(*) FROM work_orders WHERE stage != 'completed' AND expected_finish_at < NOW()")->fetchColumn();
+}
